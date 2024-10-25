@@ -40,7 +40,12 @@
 
 ;; can we just keep a flat tructure and use left right numbering to let us remove subtrees? we'll need to be able to renumber the whole tree, but that shouldn't be impossible and only needs to happen once per remove?
 
-(def example
+(def raw-example
+  {:children [{:children [{:children []}]}
+              {:children [{:children []}
+                          {:children []}]}]})
+
+(def numbered-example
   {:L 0
    :R 11
    :children [{:L 1
@@ -73,36 +78,58 @@
   []
   example)
 
-;; @TODO not working
-(defn add-numbering
-  ([tree]
-   (add-numbering tree (atom 0)))
-  ([{:keys [children] :as tree} n]
-   (if (empty? children)
-     (let [L @n
-           R (swap! n inc)]
-       (swap! n inc)
-       (assoc tree
-              :L L
-              :R L))
-     (let [L @n]
-       (swap! n inc)
-       (assoc tree
-              :L L
-              :R L)))))
+;; @TODO: docstring and maybe tidy up a bit for readability?
+(defn add-numbering*
+  [{:keys [children] :as tree} n]
+  (let [{:keys [result-children next-n]}
+        (reduce (fn [acc child]
+                  (let [{:keys [result-tree next-n]} (add-numbering* child (:next-n acc))]
+                    (-> acc
+                        (update :result-children conj result-tree)
+                        (assoc :next-n next-n))))
+                {:result-children []
+                 :next-n (inc n)}
+                children)]
+    {:result-tree (assoc tree
+                         :children result-children
+                         :L n
+                         :R next-n)
+     :next-n (inc next-n)}))
 
-(defn flat
+(defn add-numbering
+  [tree]
+  (:result-tree (add-numbering* tree 0)))
+
+(defn collapse
+  "Take the tree representation of the branches and collapse them down
+  to a single sequence. We can remove the `:children` fro each as we
+  will rely on the `L` and `R` values for structure."
   [tree]
   (map #(dissoc % :children)
        (tree-seq seq :children tree)))
 
 (defn all-descendants
+  "The descendants of a node N are the nodes whose `L` and `R` are both
+  between N's `L` and `R`"
   [branches {:keys [L R] :as parent}]
   (filter (fn [e]
             (<= L (:L e) (:R e) R))
           branches))
 
-(defn child-count
+(defn parent
+  "The parent of a node N is the node with the highest `L` of all nodes
+  that have both `L` less than N's `L` and `R` greater than N's `R`"
+  [branches {:keys [L R] :as child}]
+  (->> branches
+       (filter (fn [b]
+                 (and (< (:L b) L)
+                      (< R (:R b)))))
+       sort-by :L
+       last))
+
+(defn descendant-count
+  "The number of descendants a node has can be determined directly from
+  its `L` and `R` without counting them."
   [{:keys [L R]}]
   (/ (dec (- R L)) 2))
 
@@ -110,14 +137,4 @@
   [{:keys [L R]}]
   (= L (dec R)))
 
-
-
-(comment
-
-  ;; how to create a list of sprites representing a tree
-  
-  (let [t (random-tree)
-        branches-data (-> t
-                          add-numbering
-                          flat)]
-    (map branch branches-data)))
+;; @TODO: want a util function for grouping a flat list of descendants by depth?
