@@ -70,13 +70,19 @@
 
 ;; so in order to use this we need to be able to take a tree and add L and R numbers `add-numbering`, we need to be able to flatten this tree into a seq `flatten`? `tree-seq`?, we need to be able to handle subtrees, so some kind of `get-all-descendants` sounds good, and we want to be able to count the number of descendants which we can do with (/ (dec (- r l)) 2)
 
-;; @TODO: thought, instead of fully reconstructing the tree so we can re-number after cutting a subtree, surely we can just take 2n away from L and R of all nodes with L < removed-L where n is the number of nodes in the subtree? Can write a test that asserts that cuting a sutree and shuffling nums is the same as re-numbering the tree?
 
 ;; @TODO: think about how position comes into this, just set and forget? what about when bending a branch with deep children? we need to know the parent's position and child's relative position. at leats needs thinkging about.
 
+
+
+
+
+
+
+
 (defn random-tree
   []
-  example)
+  raw-example)
 
 ;; @TODO: docstring and maybe tidy up a bit for readability?
 (defn add-numbering*
@@ -116,6 +122,12 @@
             (<= L (:L e) (:R e) R))
           branches))
 
+(defn descendant-count
+  "The number of descendants a node has can be determined directly from
+  its `L` and `R` without counting them."
+  [{:keys [L R]}]
+  (/ (dec (- R L)) 2))
+
 (defn parent
   "The parent of a node N is the node with the highest `L` of all nodes
   that have both `L` less than N's `L` and `R` greater than N's `R`"
@@ -124,17 +136,63 @@
        (filter (fn [b]
                  (and (< (:L b) L)
                       (< R (:R b)))))
-       sort-by :L
+       (sort-by :L)
        last))
-
-(defn descendant-count
-  "The number of descendants a node has can be determined directly from
-  its `L` and `R` without counting them."
-  [{:keys [L R]}]
-  (/ (dec (- R L)) 2))
 
 (defn childless?
   [{:keys [L R]}]
   (= L (dec R)))
 
 ;; @TODO: want a util function for grouping a flat list of descendants by depth?
+(defn group-by-depth
+  ;; @NOTE it kinda feels like this is only possible if we reconstruct the tree fully?
+  [branches])
+
+(defn cut
+  "To remove a subtree at node N we need to remove all nodes which have
+  `L` and `R` between N's `L` and `R`.
+
+   All the remaining nodes with `L` and/or `R` values greater than N's
+  original `R` value need to be decremented to account for the nodes
+  under N (and N itself) leaving the tree."
+  [branches {:keys [L R] :as cut-node}]
+  (let [remaining (filter (fn [b]
+                            (not (<= L (:L b) (:R b) R)))
+                          branches)
+        
+        adjustment (+ 2 (* 2 (descendant-count cut-node)))]
+    (map (fn [b]
+           ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
+           (if (< R (:R b))
+             (update 
+              (if (< R (:L b))
+                (update b :L - adjustment)
+                b)
+              :R - adjustment)
+             b))
+         remaining)))
+
+(defn graft
+  "Add new branches to an existing node.
+
+  New branches are supplied as a branches seq, we need to increment
+  their `L` and `R` values based on the target node's `L` value, we
+  need to increment later `L` and `R` values in the original seq
+  relative to the number of new nodes we're adding."
+  [branches {:keys [L R] :as target-node} new-branches]
+  (let [adjustment (* 2 (count new-branches))]
+    (concat (map (fn [b]
+                   ;; @TODO: same ugly nonsense
+                   (if (< L (:R b))
+                     (update 
+                      (if (< L (:L b))
+                        (update b :L + adjustment)
+                        b)
+                      :R + adjustment)
+                     b))
+                 branches)
+            (map (fn [b]
+                   (-> b
+                       (update :L + (inc L))
+                       (update :R + (inc L))))
+                 new-branches))))
