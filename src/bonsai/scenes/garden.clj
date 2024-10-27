@@ -2,12 +2,18 @@
   (:require [quip.sprite :as qpsprite]
             [quip.utils :as qpu]
             [bonsai.common :as c]
-            [bonsai.sprites.branch :as b]))
+            [bonsai.sprites.branch :as b]
+            [quil.core :as q]))
 
 (defn sprites
   "The initial list of sprites for this scene"
   []
-  [#_(b/branch [400 300] 50 20)])
+  (-> (b/create-tree [(/ (q/width) 2) (* 0.8 (q/height))]
+                     100
+                     0
+                     6)
+      b/add-numbering
+      b/collapse))
 
 (defn draw-garden
   "Called each frame, draws the current scene to the screen"
@@ -20,6 +26,8 @@
   [state]
   (-> state
       qpsprite/update-scene-sprites))
+
+;; @TODO: add keybindings to cut, graft and rotate nodes to demonstrate everything working.
 
 (defn init
   "Initialise this scene"

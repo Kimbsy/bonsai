@@ -128,16 +128,28 @@
     (let [branches (-> example-tree
                        b/add-numbering
                        b/collapse)]
-      
+
+      (testing "We can determine the number of descendants of a node"
+        (is (= 4 (b/descendant-count {:value 'A :L 0 :R 9})))
+        (is (= 2 (b/descendant-count {:value 'Q :L 3 :R 8}))))
+
       (testing "We can get the descendants of a node"
         (is (= [{:value 'Q :L 3 :R 8}
                 {:value 'T :L 4 :R 5}
                 {:value 'M :L 6 :R 7}]
                (b/all-descendants branches {:value 'Q :L 3 :R 8}))))
 
-      (testing "We can determine the number of descendants of a node"
-        (is (= 4 (b/descendant-count {:value 'A :L 0 :R 9})))
-        (is (= 2 (b/descendant-count {:value 'Q :L 3 :R 8}))))
+      (testing "We can determine if a node has no children"
+        (is (b/childless? {:value 'T :L 4 :R 5}))
+        (is (not (b/childless? {:value 'Q :L 3 :R 8}))))
+
+      (testing "We can find the direct children of a node"
+        (is (= [{:value 'T :L 4 :R 5}
+                {:value 'M :L 6 :R 7}]
+               (b/direct-children branches {:value 'Q :L 3 :R 8})))
+        (is (= [{:value 'X :L 1 :R 2}
+                {:value 'Q :L 3 :R 8}]
+               (b/direct-children branches {:value 'A :L 0 :R 9}))))
 
       (testing "We can get the direct parent of a node"
         (is (= {:value 'Q :L 3 :R 8}
@@ -145,12 +157,13 @@
         (is (= {:value 'A :L 0 :R 9}
                (b/parent branches {:value 'Q :L 3 :R 8}))))
 
-      (testing "We can determine if a node has no children"
-        (is (b/childless? {:value 'T :L 4 :R 5}))
-        (is (not (b/childless? {:value 'Q :L 3 :R 8}))))
-
       (testing "We can group nodes by depth"
-        ;; @TODO: implement
+        (is (= [[{:value 'A :L 0 :R 1}]]
+               (b/group-by-depth [{:value 'A :L 0 :R 1}])))
+        (is (= [[{:value 'A :L 0 :R 9}]
+                [{:value 'X :L 1 :R 2} {:value 'Q :L 3 :R 8}]
+                [{:value 'T :L 4 :R 5} {:value 'M :L 6 :R 7}]]
+               (b/group-by-depth branches)))
         ))))
 
 (deftest cutting-branch
