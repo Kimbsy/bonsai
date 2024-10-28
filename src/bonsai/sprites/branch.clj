@@ -116,6 +116,7 @@
           (recur (conj groups children))
           groups)))))
 
+;; @TODO: would be cool to have a nice slashing cut animation at the base of the target node
 (defn cut
   "To remove a subtree at node N we need to remove all nodes which have
   `L` and `R` between N's `L` and `R`.
@@ -140,6 +141,7 @@
              b))
          remaining)))
 
+;; @TODO: could have a nice green/pink leaf/blossom burst at the target node when we graft
 (defn graft
   "Add new branches to an existing node.
 
@@ -150,7 +152,7 @@
   [branches {:keys [L R] :as target-node} new-branches]
   (let [adjustment (* 2 (count new-branches))]
     (concat (map (fn [b]
-                   ;; @TODO: same ugly nonsense
+                   ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
                    (if (< L (:R b))
                      (update 
                       (if (< L (:L b))
@@ -178,7 +180,7 @@
 
 (defn draw-branch
   [{[p1 p2] :line size :size}]
-  (qpu/stroke c/brown)
+  (qpu/stroke c/dark-slate-grey)
   (q/stroke-weight (/ size 6))
   (q/line p1 p2))
 
@@ -191,6 +193,11 @@
    :line [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]
    :draw-fn draw-branch
    :update-fn identity})
+
+;; @TODO: repeat of constructor line, should dedupe
+(defn recalc-line
+  [{:keys [pos r size] :as branch}]
+  (assoc branch :line [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
 
 ;; @TODO: do we want to create the sprites in a tree structure so we have access to the parent at that point, then use the nested set for manipulating them in-game? [DONE] good idea, must add to docstring.
 (defn create-tree
