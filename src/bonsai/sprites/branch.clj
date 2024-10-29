@@ -3,121 +3,227 @@
             [bonsai.common :as c]
             [quil.core :as q]))
 
-(defn draw-branch
-  [{[p1 p2] :line children :children}]
-  (qpu/stroke c/brown)
-  (q/stroke-weight 3)
-  (q/line p1 p2)
-  (doseq [child children]
-    (draw-branch child)))
+(defn add-numbering*
+  "Take a tree-like data structure of branch sprites and add the
+  appropriate `L` and `R` values to encode the structure with the
+  nested set model.
 
-(defn branch
-  [pos size r depth max-depth]
-  {:sprite-group :branches
-   :pos pos
-   :size size
-   :r r
-   :line [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]
-   :children [(branch )]
-   :draw-fn draw-branch
-   :update-fn identity})
+  It's a recursive reduce which is a little opaque, but we essentially
+  just keep track of the current value of a counter while doing a
+  depth-first traversal of the tree, and conjing the updated children
+  into a single result vector."
+  [{:keys [children] :as tree} n]
+  (let [{:keys [result-children next-n]}
+        (reduce (fn [acc child]
+                  (let [{:keys [result-tree next-n]} (add-numbering* child (:next-n acc))]
+                    (-> acc
+                        (update :result-children conj result-tree)
+                        (assoc :next-n next-n))))
+                {:result-children []
+                 :next-n (inc n)}
+                children)]
+    {:result-tree (assoc tree
+                         :children result-children
+                         :L n
+                         :R next-n)
+     :next-n (inc next-n)}))
 
-
-
-;; we want to be able to reomve a branch, killing all its children recursively
-
-;; we want to be able to modify the rotation of a branch
-
-;; we want to be able to add a new child?
-
-;; at the start we want to make a random tree, then save it in a form tht is quick to draw and possible ot modify
-
-;; we also want each branch to be a sprite (maybe?) for collision detection with mouse clicks
-
-;; we want the branches to be in a tree strucure so we can easily kill sections
-
-;; but maybe we also want it in a flat structure for collision detection? or maybe we should juts use some good tree walking abstractions? `tree-seq`? `walk`?
-
-;; can we just keep a flat tructure and use left right numbering to let us remove subtrees? we'll need to be able to renumber the whole tree, but that shouldn't be impossible and only needs to happen once per remove?
-
-(def example
-  {:L 0
-   :R 11
-   :children [{:L 1
-               :R 4
-               :children [{:L 2
-                           :R 3
-                           :children []}]}
-              {:L 5
-               :R 10
-               :children [{:L 6
-                           :R 7
-                           :children []}
-                          {:L 8
-                           :R 9
-                           :children []}]}]})
-
-;; this lets us do nice things like intuitively know that a node is at the end (= r (inc l)) so we can put leaves or something there.
-
-;; we an also store the ndoes in a flat vector (good for sprites) but still manage subtrees with simple filter queries (all children have l and r between parent's l and r values)
-
-;; looks like this is called the nested set model and is used for representing trees in (e.g.) relational databases
-
-;; so in order to use this we need to be able to take a tree and add L and R numbers `add-numbering`, we need to be able to flatten this tree into a seq `flatten`? `tree-seq`?, we need to be able to handle subtrees, so some kind of `get-all-descendants` sounds good, and we want to be able to count the number of descendants which we can do with (/ (dec (- r l)) 2)
-
-;; @TODO: thought, instead of fully reconstructing the tree so we can re-number after cutting a subtree, surely we can just take 2n away from L and R of all nodes with L < removed-L where n is the number of nodes in the subtree? Can write a test that asserts that cuting a sutree and shuffling nums is the same as re-numbering the tree?
-
-;; @TODO: think about how position comes into this, just set and forget? what about when bending a branch with deep children? we need to know the parent's position and child's relative position. at leats needs thinkging about.
-
-(defn random-tree
-  []
-  example)
-
-;; @TODO not working
 (defn add-numbering
-  ([tree]
-   (add-numbering tree (atom 0)))
-  ([{:keys [children] :as tree} n]
-   (if (empty? children)
-     (let [L @n
-           R (swap! n inc)]
-       (swap! n inc)
-       (assoc tree
-              :L L
-              :R L))
-     (let [L @n]
-       (swap! n inc)
-       (assoc tree
-              :L L
-              :R L)))))
+  "A neater interface to `add-numbering*`."
+  [tree]
+  (:result-tree (add-numbering* tree 0)))
 
-(defn flat
+(defn collapse
+  "Take the tree representation of the branches and collapse them down
+  to a single sequence. We can remove the `:children` fro each as we
+  will rely on the `L` and `R` values for structure."
   [tree]
   (map #(dissoc % :children)
        (tree-seq seq :children tree)))
 
+(defn descendant-count
+  "The number of descendants a node has can be determined directly from
+  its `L` and `R` without counting them."
+  [{:keys [L R]}]
+  (/ (dec (- R L)) 2))
+
 (defn all-descendants
+  "The descendants of a node N are the nodes whose `L` and `R` are both
+  between N's `L` and `R`"
   [branches {:keys [L R] :as parent}]
   (filter (fn [e]
             (<= L (:L e) (:R e) R))
           branches))
 
-(defn child-count
-  [{:keys [L R]}]
-  (/ (dec (- R L)) 2))
-
 (defn childless?
   [{:keys [L R]}]
   (= L (dec R)))
 
+(defn direct-children
+  "Finding the direct (one level deeper) children of a nodeN is
+  comparatively expensive.
+
+  We know that the node with `L` one higher than N's is a direct
+  child (the leftmost child in fact). We then recursively iterate
+  through the other descendants looking for nodes with `L` one higher
+  than this latest known child."
+  [branches {:keys [L R] :as parent}]
+  (if (childless? parent)
+    []
+    (let [leftmost-child (first (filter #(= (inc L) (:L %)) branches))]
+      (loop [candidates (all-descendants branches parent)
+             children [leftmost-child]
+             latest-child leftmost-child]
+        (if (seq candidates)
+          (let [next-candidate (first candidates)]
+            (if (= (inc (:R latest-child)) (:L next-candidate))
+              (recur (rest candidates)
+                     (conj children next-candidate)
+                     next-candidate)
+              (recur (rest candidates)
+                     children
+                     latest-child)))
+          children)
+        ))))
+
+(defn parent
+  "The parent of a node N is the node with the highest `L` of all nodes
+  that have both `L` less than N's `L` and `R` greater than N's `R`"
+  [branches {:keys [L R] :as child}]
+  (->> branches
+       (filter (fn [b]
+                 (and (< (:L b) L)
+                      (< R (:R b)))))
+       (sort-by :L)
+       last))
 
 
-(comment
+(defn group-by-depth
+  "By starting at the root node we can find all the direct children,
+  then we can find all the direct children of these, adding a new
+  group each iteration until one group of children are all childless.
 
-  ;; how to create a list of sprites representing a tree
-  
-  (let [t (random-tree)
-        branches-data (-> t
-                          add-numbering
-                          flat)]
-    (map branch branches-data)))
+  This uses multiple calls to `direct-children` and is probably quite
+  expensive as a result. Probably best to limit it to scene
+  initialization rather than anything that happens every frame."
+  [branches]
+  (let [root (first (filter #(= 0 (:L %)) branches))]
+    (loop [groups [[root]]]
+      (let [children (mapcat #(direct-children branches %) (last groups))]
+        (if (seq children)
+          (recur (conj groups children))
+          groups)))))
+
+;; @TODO: would be cool to have a nice slashing cut animation at the base of the target node
+(defn cut
+  "To remove a subtree at node N we need to remove all nodes which have
+  `L` and `R` between N's `L` and `R`.
+
+   All the remaining nodes with `L` and/or `R` values greater than N's
+  original `R` value need to be decremented to account for the nodes
+  under N (and N itself) leaving the tree."
+  [branches {:keys [L R] :as cut-node}]
+  (let [remaining (filter (fn [b]
+                            (not (<= L (:L b) (:R b) R)))
+                          branches)
+        
+        adjustment (+ 2 (* 2 (descendant-count cut-node)))]
+    (map (fn [b]
+           ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
+           (if (< R (:R b))
+             (update 
+              (if (< R (:L b))
+                (update b :L - adjustment)
+                b)
+              :R - adjustment)
+             b))
+         remaining)))
+
+;; @TODO: could have a nice green/pink leaf/blossom burst at the target node when we graft
+;; @TODO: would also be nice to have the branches grow with a tweened animation.
+(defn graft
+  "Add new branches to an existing node.
+
+  New branches are supplied as a branches seq, we need to increment
+  their `L` and `R` values based on the target node's `L` value, we
+  need to increment later `L` and `R` values in the original seq
+  relative to the number of new nodes we're adding."
+  [branches {:keys [L R] :as target-node} new-branches]
+  (let [adjustment (* 2 (count new-branches))]
+    (concat (map (fn [b]
+                   ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
+                   (if (< L (:R b))
+                     (update 
+                      (if (< L (:L b))
+                        (update b :L + adjustment)
+                        b)
+                      :R + adjustment)
+                     b))
+                 branches)
+            (map (fn [b]
+                   (-> b
+                       (update :L + (inc L))
+                       (update :R + (inc L))))
+                 new-branches))))
+
+(defn branch-line
+  ([{:keys [pos r size]}]
+   (branch-line pos r size))
+  ([pos r size]
+   [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
+
+(defn bend
+  "Rotate a branch and all of its descendants by an angle `dr`.
+
+  We calculate the vectors from the origin of the target branch to
+  each descendant's branch, rotate these vectors and reposition the
+  descendants according to the new end positions."
+  [branches {:keys [pos L R] :as target-node} dr]
+  ;; @TODO: might want this to be a bit more of a generic "update-all-descendants" abstraction?
+  (map (fn [branch]
+         (if (<= L (:L branch) (:R branch) R)
+           (let [v (map - (:pos branch) pos)
+                 rotated (qpu/rotate-vector v dr)
+                 new-pos (map + pos rotated)]
+             (-> branch
+                 (assoc :pos new-pos)
+                 (update :r + dr)
+                 (assoc :line (branch-line branch))))
+           branch))
+       branches))
+
+(defn draw-branch
+  [{[p1 p2] :line size :size}]
+  (qpu/stroke c/dark-slate-grey)
+  (q/stroke-weight (/ size 6))
+  (q/line p1 p2))
+
+(defn branch
+  [pos size r]
+  {:sprite-group :branches
+   :pos pos
+   :size size
+   :r r
+   :line (branch-line pos r size)
+   :draw-fn draw-branch
+   :update-fn identity})
+
+(defn create-tree
+  "We create our tree (whole tree, or subtree if grafting) with a nested
+  structure as it makes it easy to ensure the positions of all the
+  children are correct. We'll store the sprites in a flat vector using
+  our nested set model for ease of manipulation in-game."
+  [pos size r depth]
+  (let [b (branch pos size r)]
+    (assoc b
+           :children (if (pos? depth)
+                       (let [dr 30]
+                         [(create-tree (last (:line b))
+                                       (* size 0.8)
+                                       (+ r dr)
+                                       (dec depth))
+                          (create-tree (last (:line b))
+                                       (* size 0.8)
+                                       (- r dr)
+                                       (dec depth))])
+                       []))))

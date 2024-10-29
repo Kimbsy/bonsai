@@ -146,6 +146,8 @@
     (play state)
     state))
 
+;; @TODO: can we have the mouse push air currents through the falling blossoms instead of creating them?
+
 (defn init
   "Initialise this scene"
   []
