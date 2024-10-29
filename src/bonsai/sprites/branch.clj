@@ -3,18 +3,15 @@
             [bonsai.common :as c]
             [quil.core :as q]))
 
-;; we want to be able to reomve a branch, killing all its children recursively
-
-;; we want to be able to modify the rotation of a branch
-
-;; we want to be able to add a new child?
-
-(defn random-tree
-  []
-  {:children []})
-
-;; @TODO: docstring and maybe tidy up a bit for readability?
 (defn add-numbering*
+  "Take a tree-like data structure of branch sprites and add the
+  appropriate `L` and `R` values to encode the structure with the
+  nested set model.
+
+  It's a recursive reduce which is a little opaque, but we essentially
+  just keep track of the current value of a counter while doing a
+  depth-first traversal of the tree, and conjing the updated children
+  into a single result vector."
   [{:keys [children] :as tree} n]
   (let [{:keys [result-children next-n]}
         (reduce (fn [acc child]
@@ -32,6 +29,7 @@
      :next-n (inc next-n)}))
 
 (defn add-numbering
+  "A neater interface to `add-numbering*`."
   [tree]
   (:result-tree (add-numbering* tree 0)))
 
@@ -142,6 +140,7 @@
          remaining)))
 
 ;; @TODO: could have a nice green/pink leaf/blossom burst at the target node when we graft
+;; @TODO: would also be nice to have the branches grow with a tweened animation.
 (defn graft
   "Add new branches to an existing node.
 
@@ -167,16 +166,31 @@
                        (update :R + (inc L))))
                  new-branches))))
 
+(defn branch-line
+  ([{:keys [pos r size]}]
+   (branch-line pos r size))
+  ([pos r size]
+   [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
+
 (defn bend
-  "Rotate a branch and all of its descendants by an angle 1`dr`.
+  "Rotate a branch and all of its descendants by an angle `dr`.
 
   We calculate the vectors from the origin of the target branch to
   each descendant's branch, rotate these vectors and reposition the
   descendants according to the new end positions."
-  [branches {:keys [pos r L R] :as target-node} dr]
-
-  ;; @TODO: implement
-  )
+  [branches {:keys [pos L R] :as target-node} dr]
+  ;; @TODO: might want this to be a bit more of a generic "update-all-descendants" abstraction?
+  (map (fn [branch]
+         (if (<= L (:L branch) (:R branch) R)
+           (let [v (map - (:pos branch) pos)
+                 rotated (qpu/rotate-vector v dr)
+                 new-pos (map + pos rotated)]
+             (-> branch
+                 (assoc :pos new-pos)
+                 (update :r + dr)
+                 (assoc :line (branch-line branch))))
+           branch))
+       branches))
 
 (defn draw-branch
   [{[p1 p2] :line size :size}]
@@ -190,17 +204,15 @@
    :pos pos
    :size size
    :r r
-   :line [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]
+   :line (branch-line pos r size)
    :draw-fn draw-branch
    :update-fn identity})
 
-;; @TODO: repeat of constructor line, should dedupe
-(defn recalc-line
-  [{:keys [pos r size] :as branch}]
-  (assoc branch :line [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
-
-;; @TODO: do we want to create the sprites in a tree structure so we have access to the parent at that point, then use the nested set for manipulating them in-game? [DONE] good idea, must add to docstring.
 (defn create-tree
+  "We create our tree (whole tree, or subtree if grafting) with a nested
+  structure as it makes it easy to ensure the positions of all the
+  children are correct. We'll store the sprites in a flat vector using
+  our nested set model for ease of manipulation in-game."
   [pos size r depth]
   (let [b (branch pos size r)]
     (assoc b

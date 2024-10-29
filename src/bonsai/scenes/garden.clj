@@ -37,7 +37,7 @@
 
 (defn cut-random
   [{:keys [current-scene] :as state}]
-  ;; @TODO: never cut the root node
+  ;; Make sure we never cut the root node
   (let [branches (get-branches state)
         root (first (filter #(zero? (:L %)) branches))
         cutable (remove #(zero? (:L %)) branches)]
@@ -71,21 +71,10 @@
         (assoc :latest-grafted-node (first (filter #(= (:L %) (inc (:L target))) grafted))))))
 
 (defn rotate
-  [state dr]
-  (if-let [{:keys [L R] :as latest} (:latest-grafted-node state)]
-    ;; @TODO: some nice wy of doing this to leverage the nested set abstraction a bit better.
-    (qpsprite/update-sprites-by-pred
-     state
-     (fn [s] (<= L (:L s) (:R s) R))
-     (fn [child]
-       ;; Calculate the vector from the base of the latest node to the base of the child node, rotate the vector by `dr` and then update the child position
-       (let [v (map - (:pos child) (:pos latest))
-             rotated (qpu/rotate-vector v dr)
-             new-pos (map + (:pos latest) rotated)]
-         (-> child
-             (assoc :pos new-pos)
-             (update :r + dr)
-             b/recalc-line))))
+  [{:keys [current-scene] :as state} dr]
+  (if-let [latest (:latest-grafted-node state)]
+    (let [branches (get-branches state)]
+      (assoc-in state [:scenes current-scene :sprites] (b/bend branches latest dr)))
     state))
 
 (defn handle-key-pressed
