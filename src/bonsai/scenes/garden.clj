@@ -15,25 +15,47 @@
       b/add-numbering
       b/collapse))
 
+(defn get-branches
+  [{:keys [current-scene] :as state}]
+  (filter (qpsprite/group-pred :branches) (get-in state [:scenes current-scene :sprites])))
+
+(defn draw-highlighted-branch
+  [{:keys [current-scene] :as state}]
+  (let [branches (get-branches state)]
+    (if-let [selected (first (filter :highlight? branches))]
+      (b/draw-branch selected))))
+
 (defn draw-garden
   "Called each frame, draws the current scene to the screen"
   [state]
   (qpu/background c/sky-blue)
-  (qpsprite/draw-scene-sprites state))
+  (qpsprite/draw-scene-sprites state)
+
+  ;; draw the highlighted branch again so it's on top
+  (draw-highlighted-branch state))
+
+(defn higlight-closest
+  [{:keys [current-scene] :as state}]
+  (let [branches (get-branches state)
+        closest (b/get-closest-branch branches [(q/mouse-x) (q/mouse-y)])]
+    (qpsprite/update-sprites-by-pred
+     state
+     (fn [{:keys [L R]}]
+       (and (= L (:L closest))
+            (= R (:R closest))))
+     (fn [b]
+       (assoc b :highlight? true)))))
 
 (defn update-garden
   "Called each frame, update the sprites in the current scene"
   [state]
   (-> state
-      qpsprite/update-scene-sprites))
+      qpsprite/update-scene-sprites
+      higlight-closest))
 
 
 ;;;; random cut/graft/rotate functions to show everything working.
 ;;;; @TODO: need to use mouse controls to select where to cut or graft.
-
-(defn get-branches
-  [{:keys [current-scene] :as state}]
-  (filter (qpsprite/group-pred :branches) (get-in state [:scenes current-scene :sprites])))
 
 (defn cut-random
   [{:keys [current-scene] :as state}]

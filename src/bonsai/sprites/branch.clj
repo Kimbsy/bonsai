@@ -83,8 +83,7 @@
               (recur (rest candidates)
                      children
                      latest-child)))
-          children)
-        ))))
+          children)))))
 
 (defn parent
   "The parent of a node N is the node with the highest `L` of all nodes
@@ -96,7 +95,6 @@
                       (< R (:R b)))))
        (sort-by :L)
        last))
-
 
 (defn group-by-depth
   "By starting at the root node we can find all the direct children,
@@ -167,10 +165,16 @@
                  new-branches))))
 
 (defn branch-line
+  "Calculate the line for a branch."
   ([{:keys [pos r size]}]
    (branch-line pos r size))
   ([pos r size]
    [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
+
+(defn midpoint
+  "Calculate the midpoint of a line."
+  [line]
+  (apply map (fn [a b] (/ (+ a b) 2)) line))
 
 (defn bend
   "Rotate a branch and all of its descendants by an angle `dr`.
@@ -184,29 +188,38 @@
          (if (<= L (:L branch) (:R branch) R)
            (let [v (map - (:pos branch) pos)
                  rotated (qpu/rotate-vector v dr)
-                 new-pos (map + pos rotated)]
+                 new-pos (map + pos rotated)
+                 line (branch-line branch)]
              (-> branch
                  (assoc :pos new-pos)
                  (update :r + dr)
-                 (assoc :line (branch-line branch))))
+                 (assoc :line line)
+                 (assoc :mp (midpoint line))))
            branch))
        branches))
 
 (defn draw-branch
-  [{[p1 p2] :line size :size}]
-  (qpu/stroke c/dark-slate-grey)
+  [{[p1 p2] :line :keys [size color hl-color highlight?]}]
+  (if highlight?
+    (qpu/stroke hl-color)
+    (qpu/stroke color))
   (q/stroke-weight (/ size 6))
   (q/line p1 p2))
 
 (defn branch
   [pos size r]
-  {:sprite-group :branches
-   :pos pos
-   :size size
-   :r r
-   :line (branch-line pos r size)
-   :draw-fn draw-branch
-   :update-fn identity})
+  (let [line (branch-line pos r size)]
+    {:sprite-group :branches
+     :pos pos
+     :size size
+     :color c/dark-slate-grey
+     :hl-color c/ceramic-white
+     :highlight? false
+     :r r
+     :line line
+     :mp (midpoint line)
+     :draw-fn draw-branch
+     :update-fn (fn [b] (assoc b :highlight? false))}))
 
 (defn create-tree
   "We create our tree (whole tree, or subtree if grafting) with a nested
@@ -227,3 +240,11 @@
                                        (- r dr)
                                        (dec depth))])
                        []))))
+
+(defn get-closest-branch
+  "Determine the branch with the closest midpoint to the specified
+  `pos`."
+  [branches [x y :as pos]]
+  (first (sort-by (fn [b]
+                    (qpu/magnitude (map - (:mp b) pos)))
+                  branches)))
