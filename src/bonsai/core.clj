@@ -1,6 +1,7 @@
 (ns bonsai.core
   (:gen-class)
   (:require [quip.core :as qp]
+            [quip.sound :as qpsound]
             [bonsai.scenes.menu :as menu]
             [bonsai.scenes.garden :as garden]))
 
@@ -26,4 +27,5 @@
 (defn -main
   "Run the game"
   [& args]
+  (qpsound/loop-music "the-blossoms-2.wav")
   (qp/run bonsai-game))
