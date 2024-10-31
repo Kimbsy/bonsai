@@ -112,6 +112,13 @@
           (recur (conj groups children))
           groups)))))
 
+(defn get-from-coords
+  "Find the node in the branches which matches the `L` and `R` values."
+  [branches {:keys [L R]}]
+  (first (filter (fn [b] (and (= L (:L b))
+                              (= R (:R b))))
+                 branches)))
+
 ;; @TODO: would be cool to have a nice slashing cut animation at the base of the target node
 (defn cut
   "To remove a subtree at node N we need to remove all nodes which have
@@ -189,10 +196,12 @@
            (let [v (map - (:pos branch) pos)
                  rotated (qpu/rotate-vector v dr)
                  new-pos (map + pos rotated)
-                 line (branch-line branch)]
-             (-> branch
-                 (assoc :pos new-pos)
-                 (update :r + dr)
+                 ;; need to update `pos` and `r` before recalculating the `line` and `mp`
+                 updated-branch (-> branch
+                                    (update :r + dr)
+                                    (assoc :pos new-pos))
+                 line (branch-line updated-branch)]
+             (-> updated-branch
                  (assoc :line line)
                  (assoc :mp (midpoint line))))
            branch))
@@ -243,8 +252,11 @@
 
 (defn get-closest-branch
   "Determine the branch with the closest midpoint to the specified
-  `pos`."
+  `pos`.
+
+  Returns a vector of the branch and it's distance."
   [branches [x y :as pos]]
-  (first (sort-by (fn [b]
-                    (qpu/magnitude (map - (:mp b) pos)))
-                  branches)))
+  (->> branches
+       (map (fn [b] [b (qpu/magnitude (map - (:mp b) pos))]))
+       (sort-by second)
+       first))
