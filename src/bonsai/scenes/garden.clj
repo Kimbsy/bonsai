@@ -42,6 +42,17 @@
   (qpu/background c/sky-blue)
   (qpsprite/draw-scene-sprites state)
 
+  ;;draw foliage on top of the branches
+  (let [branches (get-branches state)
+        root (first (filter #(= 0 (:L %)) branches))
+        first-children (b/direct-children branches root)]
+    (doall
+     (->> branches
+          (filter (fn [b]
+                    (not ((into #{} (map :L (conj first-children root)))
+                          (:L b)))))
+          (map b/draw-foliage))))
+
   ;; draw the highlighted branch again so it's on top
   (draw-highlighted-branch state)
 
