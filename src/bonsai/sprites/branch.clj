@@ -229,18 +229,25 @@
   (q/line p1 p2))
 
 (defn draw-foliage
-  [{:keys [L size foliage] :as branch}]
+  [{:keys [L size foliage blossom?] :as branch}]
   (let [n (descendant-count branch)]
     (when (and (not (zero? L))
                (< n 10))
       (q/stroke-weight (/ size 6))
-      (doseq [{fpos :pos c :color r :r} foliage]
-        (qpu/stroke c)
+      (doseq [{fpos :pos cl :color cb :blossom-color r :r} foliage]
+        (if blossom?
+          (qpu/stroke cb)
+          (qpu/stroke cl))
         (draw-tri fpos r)))))
 
 (defn rand-leaf-color
   []
   (rand-nth [c/leaf-green c/light-leaf-green]))
+
+(defn rand-blossom-color
+  []
+  (rand-nth [c/blossom-pink-1
+             c/blossom-pink-2]))
 
 (defn update-foliage-positions
   [{:keys [line foliage fd] :as branch}]
@@ -257,6 +264,7 @@
          {:off off
           :pos (map + (map * fd off) end-pos)
           :color (rand-leaf-color)
+          :blossom-color (rand-blossom-color)
           :r (rand-int 4)})
        [[0 0]
         [0.5 0.5]
@@ -267,6 +275,8 @@
         [-1 1]
         [-0.5 -0.5]
         [-1 -1]]))
+
+;; @TODO: allow us to switch between leaves and blossoms
 
 (defn branch
   [pos size r]
@@ -280,6 +290,7 @@
      :highlight? false
      :foliage (init-foliage (last line) fd)
      :fd fd
+     :blossom? false
      :r r
      :line line
      :mp (midpoint line)
