@@ -3,6 +3,7 @@
             [quip.utils :as qpu]
             [bonsai.common :as c]
             [bonsai.sprites.branch :as b]
+            [bonsai.sprites.earth :as e]
             [quil.core :as q]))
 
 (defn sprites
@@ -19,7 +20,8 @@
   "Called each frame, draws the current scene to the screen"
   [state]
   (qpu/background c/sky-blue)
-  (qpsprite/draw-scene-sprites state))
+  (qpsprite/draw-scene-sprites state)
+  (e/draw-earth 110))
 
 (defn update-garden
   "Called each frame, update the sprites in the current scene"
