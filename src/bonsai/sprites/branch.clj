@@ -154,22 +154,25 @@
   need to increment later `L` and `R` values in the original seq
   relative to the number of new nodes we're adding."
   [branches {:keys [L R] :as target-node} new-branches]
-  (let [adjustment (* 2 (count new-branches))]
-    (concat (map (fn [b]
-                   ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
-                   (if (< L (:R b))
-                     (update 
-                      (if (< L (:L b))
-                        (update b :L + adjustment)
-                        b)
-                      :R + adjustment)
-                     b))
-                 branches)
-            (map (fn [b]
-                   (-> b
-                       (update :L + (inc L))
-                       (update :R + (inc L))))
-                 new-branches))))
+  (let [children (direct-children branches target-node)]
+    (if (< (count children) 2)
+      (let [adjustment (* 2 (count new-branches))]
+        (concat (map (fn [b]
+                       ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
+                       (if (< L (:R b))
+                         (update
+                          (if (< L (:L b))
+                            (update b :L + adjustment)
+                            b)
+                          :R + adjustment)
+                         b))
+                     branches)
+                (map (fn [b]
+                       (-> b
+                           (update :L + (inc L))
+                           (update :R + (inc L))))
+                     new-branches)))
+      branches)))
 
 (defn branch-line
   "Calculate the line for a branch."
@@ -203,27 +206,80 @@
                  line (branch-line updated-branch)]
              (-> updated-branch
                  (assoc :line line)
-                 (assoc :mp (midpoint line))))
+                 (assoc :mp (midpoint line))
+                 update-foliage-positions))
            branch))
        branches))
 
+(defn draw-tri
+  [[x y] r]
+  (case r
+    0 (q/triangle x y (inc x) y x (inc y))
+    1 (q/triangle x y x (inc y) (inc x) y)
+    2 (q/triangle x y (dec x) y x (dec y))
+    3 (q/triangle x y x (dec y) x (dec y))))
+
 (defn draw-branch
-  [{[p1 p2] :line :keys [size color hl-color highlight?]}]
+  [{[p1 p2] :line :keys [size color hl-color highlight? foliage]}]
+  ;; draw branch
   (if highlight?
     (qpu/stroke hl-color)
     (qpu/stroke color))
   (q/stroke-weight (/ size 6))
   (q/line p1 p2))
 
+(defn draw-foliage
+  [{:keys [L size foliage] :as branch}]
+  (let [n (descendant-count branch)]
+    (when (and (not (zero? L))
+               (< n 10))
+      (q/stroke-weight (/ size 6))
+      (doseq [{fpos :pos c :color r :r} foliage]
+        (qpu/stroke c)
+        (draw-tri fpos r)))))
+
+(defn rand-leaf-color
+  []
+  (rand-nth [c/leaf-green c/light-leaf-green]))
+
+(defn update-foliage-positions
+  [{:keys [line foliage fd] :as branch}]
+  (let [end (last line)]
+    (assoc branch
+           :foliage
+           (map (fn [{:keys [off] :as f}]
+                  (assoc f :pos (map + end (map * fd off))))
+                foliage))))
+
+(defn init-foliage
+  [end-pos fd]
+  (map (fn [off]
+         {:off off
+          :pos (map + (map * fd off) end-pos)
+          :color (rand-leaf-color)
+          :r (rand-int 4)})
+       [[0 0]
+        [0.5 0.5]
+        [1 1]
+        [0.5 -0.5]
+        [1 -1]
+        [-0.5 0.5]
+        [-1 1]
+        [-0.5 -0.5]
+        [-1 -1]]))
+
 (defn branch
   [pos size r]
-  (let [line (branch-line pos r size)]
+  (let [line (branch-line pos r size)
+        fd [(/ size 2) (/ size 2)]]
     {:sprite-group :branches
      :pos pos
      :size size
      :color c/dark-slate-grey
      :hl-color c/ceramic-white
      :highlight? false
+     :foliage (init-foliage (last line) fd)
+     :fd fd
      :r r
      :line line
      :mp (midpoint line)
