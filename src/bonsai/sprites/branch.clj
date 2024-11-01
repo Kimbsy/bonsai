@@ -186,6 +186,15 @@
   [line]
   (apply map (fn [a b] (/ (+ a b) 2)) line))
 
+(defn update-foliage-positions
+  [{:keys [line foliage fd] :as branch}]
+  (let [end (last line)]
+    (assoc branch
+           :foliage
+           (map (fn [{:keys [off] :as f}]
+                  (assoc f :pos (map + end (map * fd off))))
+                foliage))))
+
 (defn bend
   "Rotate a branch and all of its descendants by an angle `dr`.
 
@@ -229,42 +238,42 @@
   (q/line p1 p2))
 
 (defn draw-foliage
-  [{:keys [L size foliage blossom?] :as branch}]
+  [{:keys [L size foliage season] :as branch}]
   (let [n (descendant-count branch)]
     (when (and (not (zero? L))
                (< n 10))
       (q/stroke-weight (/ size 6))
-      (doseq [{fpos :pos cl :color cb :blossom-color r :r} foliage]
-        (if blossom?
-          (qpu/stroke cb)
-          (qpu/stroke cl))
+      (doseq [{fpos :pos :keys [spring-color summer-color autumn-color r]} foliage]
+        (case season
+          :spring (qpu/stroke spring-color)
+          :summer (qpu/stroke summer-color)
+          :autumn (qpu/stroke autumn-color)
+          (q/no-stroke))
         (draw-tri fpos r)))))
 
 (defn rand-leaf-color
   []
-  (rand-nth [c/leaf-green c/light-leaf-green]))
+  (rand-nth [c/leaf-green
+             c/light-leaf-green]))
 
 (defn rand-blossom-color
   []
   (rand-nth [c/blossom-pink-1
              c/blossom-pink-2]))
 
-(defn update-foliage-positions
-  [{:keys [line foliage fd] :as branch}]
-  (let [end (last line)]
-    (assoc branch
-           :foliage
-           (map (fn [{:keys [off] :as f}]
-                  (assoc f :pos (map + end (map * fd off))))
-                foliage))))
+(defn rand-autumn-color
+  []
+  (rand-nth [c/acer-orange
+             c/dark-acer-red]))
 
 (defn init-foliage
   [end-pos fd]
   (map (fn [off]
          {:off off
           :pos (map + (map * fd off) end-pos)
-          :color (rand-leaf-color)
-          :blossom-color (rand-blossom-color)
+          :spring-color (rand-blossom-color)
+          :summer-color (rand-leaf-color)
+          :autumn-color (rand-autumn-color)
           :r (rand-int 4)})
        [[0 0]
         [0.5 0.5]
@@ -276,10 +285,8 @@
         [-0.5 -0.5]
         [-1 -1]]))
 
-;; @TODO: allow us to switch between leaves and blossoms
-
 (defn branch
-  [pos size r]
+  [pos size r season]
   (let [line (branch-line pos r size)
         fd [(/ size 2) (/ size 2)]]
     {:sprite-group :branches
@@ -290,7 +297,7 @@
      :highlight? false
      :foliage (init-foliage (last line) fd)
      :fd fd
-     :blossom? false
+     :season season
      :r r
      :line line
      :mp (midpoint line)
@@ -302,19 +309,21 @@
   structure as it makes it easy to ensure the positions of all the
   children are correct. We'll store the sprites in a flat vector using
   our nested set model for ease of manipulation in-game."
-  [pos size r depth]
-  (let [b (branch pos size r)]
+  [pos size r depth season]
+  (let [b (branch pos size r season)]
     (assoc b
            :children (if (pos? depth)
                        (let [dr 30]
                          [(create-tree (last (:line b))
                                        (* size 0.8)
                                        (+ r dr)
-                                       (dec depth))
+                                       (dec depth)
+                                       season)
                           (create-tree (last (:line b))
                                        (* size 0.8)
                                        (- r dr)
-                                       (dec depth))])
+                                       (dec depth)
+                                       season)])
                        []))))
 
 (defn get-closest-branch
