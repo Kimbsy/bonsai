@@ -42,7 +42,7 @@
     :pos pos
     :width 200
     :height 50
-    :speed 5
+    :speed 0.5
     :opacity 96
     :draw-fn draw-cloud
     :update-fn update-cloud}])
