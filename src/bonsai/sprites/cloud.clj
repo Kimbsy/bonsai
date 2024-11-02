@@ -25,12 +25,15 @@
 
 (defn update-cloud
   [c]
-  (let [speed (get c :speed)
-        [x y] (get c :pos)
-        width (get c :width)]
+  (let [speed  (get c :speed)
+        [x y]  (get c :pos)
+        width  (get c :width)
+        height (get c :height)
+        min   (* height 2)
+        max   (- (q/height) 100)]
     (update c :pos (fn [[x y]]
                      (if (<= x (- 0 width))
-                       [(q/width) y]
+                       [(+(q/width) width) (+ min (rand-int (- max min)))]
                        [(- x speed) y])))))
 
 (defn cloud
@@ -39,7 +42,7 @@
     :pos pos
     :width 200
     :height 50
-    :speed 0.1
+    :speed 5
     :opacity 96
     :draw-fn draw-cloud
     :update-fn update-cloud}])
