@@ -22,12 +22,9 @@
     (q/vertex 0 h)
     (q/end-shape :close)))
 
-(defn update-earth
-  [])
-
 (defn earth
   [depth]
-  ({:sprite-group :earth
+  [{:sprite-group :earth
     :depth depth
     :draw-fn draw-earth
-    :update-fn update-earth}))
+    :update-fn identity}])

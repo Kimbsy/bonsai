@@ -18,6 +18,9 @@
               b/add-numbering
               b/collapse)
 
+          ;; background earth
+          (e/earth 125)
+
           ;; ui buttons
           (let [s 50]
             [(assoc (qpsprite/image-sprite :seasons
@@ -96,7 +99,7 @@
   "Called each frame, draws the current scene to the screen"
   [{:keys [current-scene] :as state}]
   (qpu/background c/sky-blue)
-  (qpsprite/draw-scene-sprites-by-layers state [:branches :ui])
+  (qpsprite/draw-scene-sprites-by-layers state [:earth :branches :ui])
 
   ;; highlight selected tool
   (let [current-tool (get-in state [:scenes current-scene :current-tool])]
@@ -104,7 +107,8 @@
                 :keys [w h]
                 :as ui-sprite} (first (filter #(= current-tool (:sprite-group %))
                                               (get-in state [:scenes current-scene :sprites])))]
-      (qpu/stroke c/dark-green)
+      (q/stroke-weight 4)
+      (qpu/stroke c/blossom-pink-1)
       (q/no-fill)
       (q/rect (- x (/ w 2)) (- y (/ h 2)) w h)))
 
