@@ -1,23 +1,18 @@
 (ns bonsai.scenes.garden
-  (:require [quip.collision :as qpcollision]
-            [quip.sprite :as qpsprite]
-            [quip.utils :as qpu]
-            [bonsai.common :as c]
+  (:require [bonsai.common :as c]
             [bonsai.sprites.branch :as b]
-            [bonsai.sprites.earth :as e]
             [bonsai.sprites.cloud :as cloud]
-            [quil.core :as q]))
+            [bonsai.sprites.earth :as e]
+            [quil.core :as q]
+            [quip.collision :as qpcollision]
+            [quip.scene :as qpscene]
+            [quip.sprite :as qpsprite]
+            [quip.utils :as qpu]))
 
 (defn sprites
   "The initial list of sprites for this scene"
-  []
-  (concat (-> (b/create-tree [(/ (q/width) 2) (* 0.8 (q/height))]
-                             100
-                             0
-                             6
-                             :spring)
-              b/add-numbering
-              b/collapse)
+  [initial-branches]
+  (concat initial-branches
 
           ;; background earth
           (e/earth 125)
@@ -75,23 +70,33 @@
                                             (* 0.92 (q/height))]
                                            s s
                                            "img/finish-icon.png")
-                    ;; @TODO!!!!!!!: confirmation dialog and transition to end scene
-                    :click-fn identity)])))
-
-(defn get-branches
-  [{:keys [current-scene] :as state}]
-  (filter (qpsprite/group-pred :branches) (get-in state [:scenes current-scene :sprites])))
+                    ;; @TODO!!!!!!!: confirmation dialog
+                    :click-fn (fn [state]
+                                (q/no-stroke)
+                                (-> state
+                                    (assoc-in
+                                     [:scenes :end :sprites]
+                                     (map (fn [b]
+                                            (let [updated-pos (update b :pos #(map + % [0 120]))]
+                                              (-> b
+                                                  (assoc :line (b/branch-line updated-pos))
+                                                  b/update-foliage-positions)))
+                                          (c/get-branches state)))
+                                    (qpscene/transition
+                                     :end
+                                     :transition-length 60
+                                     :transition-fn c/fade-to-white))))])))
 
 (defn draw-highlighted-branch
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)]
+  (let [branches (c/get-branches state)]
     (if-let [highlighted (first (filter :highlight? branches))]
       (b/draw-branch highlighted))))
 
 ;; @TODO: this is ugly and copy-pasta of the branch's own draw-fn, maybe that should just accept and override colour for highlights or being selected etc, then we could even have different highlight colours depending on the tool we're using
 (defn draw-selected-branch
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)]
+  (let [branches (c/get-branches state)]
     (if-let [target-coords (get-in state [:scenes current-scene :currently-selected-coords])]
       (if-let [{[p1 p2] :line :keys [size]} (b/get-from-coords branches target-coords)]
         (do
@@ -117,7 +122,7 @@
       (q/rect (- x (/ w 2)) (- y (/ h 2)) w h)))
 
   ;;draw foliage on top of the branches
-  (let [branches (get-branches state)
+  (let [branches (c/get-branches state)
         groups (b/group-by-depth branches)
         non-foliage-Ls (into #{} (map :L (apply concat (take 3 groups))))]
     (doall
@@ -136,7 +141,7 @@
   "Highlight the closest branch to the current mouse pos if any are
   close enough."
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)
+  (let [branches (c/get-branches state)
         [closest distance] (b/get-closest-branch branches [(q/mouse-x) (q/mouse-y)])
         max-distance 50]
     (if (<= distance max-distance)
@@ -161,7 +166,7 @@
 
   Will not remove the root node of the tree."
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)
+  (let [branches (c/get-branches state)
         non-branch-sprites (filter #(not (= :branches (:sprite-group %)))
                                    (get-in state [:scenes current-scene :sprites]))
         target (first (filter #(:highlight? %) branches))]
@@ -177,7 +182,7 @@
   "Graft a small random subtree onto the currently highlighted branch if
   any."
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)
+  (let [branches (c/get-branches state)
         non-branch-sprites (filter #(not (= :branches (:sprite-group %)))
                                    (get-in state [:scenes current-scene :sprites]))]
     (if-let [target (first (filter #(:highlight? %) branches))]
@@ -201,7 +206,7 @@
 (defn select-highlighted
   "Select the currently highlighted branch for bending if any."
   [{:keys [current-scene] :as state}]
-  (let [branches (get-branches state)]
+  (let [branches (c/get-branches state)]
     (if-let [target (first (filter #(:highlight? %) branches))]
       (assoc-in state [:scenes current-scene :currently-selected-coords]
                 (select-keys target [:L :R]))
@@ -211,7 +216,7 @@
 (defn rotate-selected
   [{:keys [current-scene] :as state} dr]
   (if-let [target-coords (get-in state [:scenes current-scene :currently-selected-coords])]
-    (let [branches (get-branches state)
+    (let [branches (c/get-branches state)
           non-branch-sprites (filter #(not (= :branches (:sprite-group %)))
                                    (get-in state [:scenes current-scene :sprites]))
           target (b/get-from-coords branches target-coords)]
@@ -250,11 +255,19 @@
 (defn init
   "Initialise this scene"
   []
-  {:sprites (sprites)
-   :draw-fn draw-garden
-   :update-fn update-garden
-   :mouse-pressed-fns [handle-mouse-pressed]
-   :key-pressed-fns [handle-key-pressed]
-   :current-tool :bend
-   :current-season :spring
-   :next-seasons (cycle [:summer :autumn :winter :spring])})
+  (let [initial-branches (-> (b/create-tree [(/ (q/width) 2) (* 0.8 (q/height))]
+                                            100
+                                            0
+                                            6
+                                            :spring)
+                             b/add-numbering
+                             b/collapse)]
+    {:sprites (sprites initial-branches)
+     :initial-branches initial-branches
+     :draw-fn draw-garden
+     :update-fn update-garden
+     :mouse-pressed-fns [handle-mouse-pressed]
+     :key-pressed-fns [handle-key-pressed]
+     :current-tool :bend
+     :current-season :spring
+     :next-seasons (cycle [:summer :autumn :winter :spring])}))

@@ -3,7 +3,8 @@
   (:require [quip.core :as qp]
             [quip.sound :as qpsound]
             [bonsai.scenes.menu :as menu]
-            [bonsai.scenes.garden :as garden]))
+            [bonsai.scenes.garden :as garden]
+            [bonsai.scenes.end :as end]))
 
 (defn setup
   "The initial state of the game"
@@ -14,7 +15,8 @@
   "Map of scenes in the game"
   []
   {:menu   (menu/init)
-   :garden (garden/init)})
+   :garden (garden/init)
+   :end    (end/init)})
 
 ;; Configure the game
 (def bonsai-game

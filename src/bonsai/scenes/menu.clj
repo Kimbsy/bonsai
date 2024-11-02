@@ -7,18 +7,13 @@
             [quip.utils :as qpu]
             [bonsai.common :as c]))
 
-(defn fade-to-white
-  [state progress maximum]
-  (q/fill 255 (int (* 50 (/ progress maximum))))
-  (q/rect 0 0 (q/width) (q/height)))
-
 (defn play
   "Transition from this scene to `:garden` with a 30 frame fade-out"
   [state]
   (qpscene/transition state
                       :garden
                       :transition-length 60
-                      :transition-fn fade-to-white))
+                      :transition-fn c/fade-to-white))
 
 (def title-letter c/light-leaf-green)
 (def title-digit c/blossom-pink-1)

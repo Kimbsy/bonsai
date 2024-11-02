@@ -1,5 +1,7 @@
 (ns bonsai.common
-  (:require [quip.utils :as qpu]))
+  (:require [quil.core :as q]
+            [quip.sprite :as qpsprite]
+            [quip.utils :as qpu]))
 
 (def f qpu/hex->rgb)
 
@@ -26,3 +28,12 @@
 (def dark-ceramic-white [235 220 188])
 (def slate-grey [155 173 183])
 (def dark-slate-grey [113 126 133])
+
+(defn fade-to-white
+  [state progress maximum]
+  (q/fill 255 (int (* 50 (/ progress maximum))))
+  (q/rect 0 0 (q/width) (q/height)))
+
+(defn get-branches
+  [{:keys [current-scene] :as state}]
+  (filter (qpsprite/group-pred :branches) (get-in state [:scenes current-scene :sprites])))
