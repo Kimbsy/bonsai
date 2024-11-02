@@ -83,8 +83,7 @@
               (recur (rest candidates)
                      children
                      latest-child)))
-          children)
-        ))))
+          children)))))
 
 (defn parent
   "The parent of a node N is the node with the highest `L` of all nodes
@@ -96,7 +95,6 @@
                       (< R (:R b)))))
        (sort-by :L)
        last))
-
 
 (defn group-by-depth
   "By starting at the root node we can find all the direct children,
@@ -113,6 +111,13 @@
         (if (seq children)
           (recur (conj groups children))
           groups)))))
+
+(defn get-from-coords
+  "Find the node in the branches which matches the `L` and `R` values."
+  [branches {:keys [L R]}]
+  (first (filter (fn [b] (and (= L (:L b))
+                              (= R (:R b))))
+                 branches)))
 
 ;; @TODO: would be cool to have a nice slashing cut animation at the base of the target node
 (defn cut
@@ -149,28 +154,46 @@
   need to increment later `L` and `R` values in the original seq
   relative to the number of new nodes we're adding."
   [branches {:keys [L R] :as target-node} new-branches]
-  (let [adjustment (* 2 (count new-branches))]
-    (concat (map (fn [b]
-                   ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
-                   (if (< L (:R b))
-                     (update 
-                      (if (< L (:L b))
-                        (update b :L + adjustment)
-                        b)
-                      :R + adjustment)
-                     b))
-                 branches)
-            (map (fn [b]
-                   (-> b
-                       (update :L + (inc L))
-                       (update :R + (inc L))))
-                 new-branches))))
+  (let [children (direct-children branches target-node)]
+    (if (< (count children) 2)
+      (let [adjustment (* 2 (count new-branches))]
+        (concat (map (fn [b]
+                       ;; @TODO: this is ugly as heck, need to optionally update both `:L` and/or `:R`
+                       (if (< L (:R b))
+                         (update
+                          (if (< L (:L b))
+                            (update b :L + adjustment)
+                            b)
+                          :R + adjustment)
+                         b))
+                     branches)
+                (map (fn [b]
+                       (-> b
+                           (update :L + (inc L))
+                           (update :R + (inc L))))
+                     new-branches)))
+      branches)))
 
 (defn branch-line
+  "Calculate the line for a branch."
   ([{:keys [pos r size]}]
    (branch-line pos r size))
   ([pos r size]
    [pos (map + pos (map * (qpu/direction-vector r) (repeat size)))]))
+
+(defn midpoint
+  "Calculate the midpoint of a line."
+  [line]
+  (apply map (fn [a b] (/ (+ a b) 2)) line))
+
+(defn update-foliage-positions
+  [{:keys [line foliage fd] :as branch}]
+  (let [end (last line)]
+    (assoc branch
+           :foliage
+           (map (fn [{:keys [off] :as f}]
+                  (assoc f :pos (map + end (map * fd off))))
+                foliage))))
 
 (defn bend
   "Rotate a branch and all of its descendants by an angle `dr`.
@@ -184,46 +207,132 @@
          (if (<= L (:L branch) (:R branch) R)
            (let [v (map - (:pos branch) pos)
                  rotated (qpu/rotate-vector v dr)
-                 new-pos (map + pos rotated)]
-             (-> branch
-                 (assoc :pos new-pos)
-                 (update :r + dr)
-                 (assoc :line (branch-line branch))))
+                 new-pos (map + pos rotated)
+                 ;; need to update `pos` and `r` before recalculating the `line` and `mp`
+                 updated-branch (-> branch
+                                    (update :r + dr)
+                                    (assoc :pos new-pos))
+                 line (branch-line updated-branch)]
+             (-> updated-branch
+                 (assoc :line line)
+                 (assoc :mp (midpoint line))
+                 update-foliage-positions))
            branch))
        branches))
 
+(defn draw-tri
+  [[x y] r]
+  (case r
+    0 (q/triangle x y (inc x) y x (inc y))
+    1 (q/triangle x y x (inc y) (inc x) y)
+    2 (q/triangle x y (dec x) y x (dec y))
+    3 (q/triangle x y x (dec y) x (dec y))))
+
 (defn draw-branch
-  [{[p1 p2] :line size :size}]
-  (qpu/stroke c/dark-slate-grey)
+  [{[p1 p2] :line :keys [size color hl-color highlight? foliage]}]
+  ;; draw branch
+  (if highlight?
+    (qpu/stroke hl-color)
+    (qpu/stroke color))
   (q/stroke-weight (/ size 6))
   (q/line p1 p2))
 
+(defn draw-foliage
+  [{:keys [L size foliage season] :as branch}]
+  (let [n (descendant-count branch)]
+    (when (and (not (zero? L))
+               (< n 10))
+      (q/stroke-weight (/ size 6))
+      (doseq [{fpos :pos :keys [spring-color summer-color autumn-color r]} foliage]
+        (case season
+          :spring (qpu/stroke spring-color)
+          :summer (qpu/stroke summer-color)
+          :autumn (qpu/stroke autumn-color)
+          (q/no-stroke))
+        (draw-tri fpos r)))))
+
+(defn rand-leaf-color
+  []
+  (rand-nth [c/leaf-green
+             c/light-leaf-green]))
+
+(defn rand-blossom-color
+  []
+  (rand-nth [c/blossom-pink-1
+             c/blossom-pink-2]))
+
+(defn rand-autumn-color
+  []
+  (rand-nth [c/acer-orange
+             c/dark-acer-red]))
+
+(defn init-foliage
+  [end-pos fd]
+  (map (fn [off]
+         {:off off
+          :pos (map + (map * fd off) end-pos)
+          :spring-color (rand-blossom-color)
+          :summer-color (rand-leaf-color)
+          :autumn-color (rand-autumn-color)
+          :r (rand-int 4)})
+       [[0 0]
+        [0.5 0.5]
+        [1 1]
+        [0.5 -0.5]
+        [1 -1]
+        [-0.5 0.5]
+        [-1 1]
+        [-0.5 -0.5]
+        [-1 -1]]))
+
 (defn branch
-  [pos size r]
-  {:sprite-group :branches
-   :pos pos
-   :size size
-   :r r
-   :line (branch-line pos r size)
-   :draw-fn draw-branch
-   :update-fn identity})
+  [pos size r season]
+  (let [line (branch-line pos r size)
+        fd [(/ size 2) (/ size 2)]]
+    {:sprite-group :branches
+     :pos pos
+     :size size
+     :color c/dark-slate-grey
+     :hl-color c/ceramic-white
+     :highlight? false
+     :foliage (init-foliage (last line) fd)
+     :fd fd
+     :season season
+     :r r
+     :line line
+     :mp (midpoint line)
+     :draw-fn draw-branch
+     :update-fn (fn [b] (assoc b :highlight? false))}))
 
 (defn create-tree
   "We create our tree (whole tree, or subtree if grafting) with a nested
   structure as it makes it easy to ensure the positions of all the
   children are correct. We'll store the sprites in a flat vector using
   our nested set model for ease of manipulation in-game."
-  [pos size r depth]
-  (let [b (branch pos size r)]
+  [pos size r depth season]
+  (let [b (branch pos size r season)]
     (assoc b
            :children (if (pos? depth)
                        (let [dr 30]
                          [(create-tree (last (:line b))
                                        (* size 0.8)
                                        (+ r dr)
-                                       (dec depth))
+                                       (dec depth)
+                                       season)
                           (create-tree (last (:line b))
                                        (* size 0.8)
                                        (- r dr)
-                                       (dec depth))])
+                                       (dec depth)
+                                       season)])
                        []))))
+
+(defn get-closest-branch
+  "Determine the branch with the closest midpoint to the specified
+  `pos`.
+
+  Returns a vector of the branch and it's distance."
+  [branches [x y :as pos]]
+  (->> branches
+       (map (fn [b] [b (qpu/magnitude (map - (:mp b) pos))]))
+       (sort-by second)
+       first))

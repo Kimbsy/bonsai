@@ -2,10 +2,6 @@
   (:require [bonsai.sprites.branch :as b]
             [clojure.test :refer :all]))
 
-(deftest generating-tree
-  ;; @TODO: implement various tree generation strategies
-  )
-
 ;; We start with a simple nested tree structure. Each node can have
 ;; any additional information we like (i.e. they can be quip sprite
 ;; objects), it also doesn't _need_ to be a binary tree, can have any
