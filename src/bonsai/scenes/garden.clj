@@ -4,6 +4,8 @@
             [quip.utils :as qpu]
             [bonsai.common :as c]
             [bonsai.sprites.branch :as b]
+            [bonsai.sprites.earth :as e]
+            [bonsai.sprites.cloud :as cloud]
             [quil.core :as q]))
 
 (defn sprites
@@ -16,6 +18,12 @@
                              :spring)
               b/add-numbering
               b/collapse)
+
+          ;; background earth
+          (e/earth 125)
+
+          ;; floating cloud
+          (cloud/cloud [(* 0.9 (q/width)) (* 0.7 (q/height))])
 
           ;; ui buttons
           (let [s 50]
@@ -95,7 +103,7 @@
   "Called each frame, draws the current scene to the screen"
   [{:keys [current-scene] :as state}]
   (qpu/background c/sky-blue)
-  (qpsprite/draw-scene-sprites-by-layers state [:branches :ui])
+  (qpsprite/draw-scene-sprites-by-layers state [:earth :clouds :branches :ui])
 
   ;; highlight selected tool
   (let [current-tool (get-in state [:scenes current-scene :current-tool])]
@@ -103,7 +111,8 @@
                 :keys [w h]
                 :as ui-sprite} (first (filter #(= current-tool (:sprite-group %))
                                               (get-in state [:scenes current-scene :sprites])))]
-      (qpu/stroke c/dark-green)
+      (q/stroke-weight 4)
+      (qpu/stroke c/blossom-pink-1)
       (q/no-fill)
       (q/rect (- x (/ w 2)) (- y (/ h 2)) w h)))
 
