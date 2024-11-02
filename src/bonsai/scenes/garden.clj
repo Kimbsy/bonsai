@@ -10,18 +10,18 @@
   "The initial list of sprites for this scene"
   []
   (-> (b/create-tree [(/ (q/width) 2) (* 0.8 (q/height))]
-                     100
-                     0
-                     6)
-      b/add-numbering
-      b/collapse))
+                      100
+                      0
+                      6)
+       b/add-numbering
+       b/collapse))
 
 (defn draw-garden
   "Called each frame, draws the current scene to the screen"
   [state]
   (qpu/background c/sky-blue)
   (qpsprite/draw-scene-sprites state)
-  (e/draw-earth 110))
+  (e/draw-earth 125))
 
 (defn update-garden
   "Called each frame, update the sprites in the current scene"
