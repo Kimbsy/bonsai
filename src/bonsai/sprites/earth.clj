@@ -5,7 +5,7 @@
             [quil.core :as q]))
 
 (defn draw-earth
-  [depth]
+  [{:keys [depth] :as depth}]
   (let [w (q/width)
         h (q/height)
         d (- h depth)]
@@ -21,3 +21,13 @@
     (q/vertex w h)
     (q/vertex 0 h)
     (q/end-shape :close)))
+
+(defn update-earth
+  [])
+
+(defn earth
+  [depth]
+  ({:sprite-group :earth
+    :depth depth
+    :draw-fn draw-earth
+    :update-fn update-earth}))

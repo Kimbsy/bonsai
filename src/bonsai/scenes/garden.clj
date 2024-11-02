@@ -97,7 +97,6 @@
   [{:keys [current-scene] :as state}]
   (qpu/background c/sky-blue)
   (qpsprite/draw-scene-sprites-by-layers state [:branches :ui])
-  (e/draw-earth 125)
 
   ;; highlight selected tool
   (let [current-tool (get-in state [:scenes current-scene :current-tool])]
