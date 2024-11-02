@@ -23,7 +23,7 @@
           (e/earth 125)
 
           ;; floating cloud
-          (cloud/cloud [(* 0.9 (q/width)) (* 0.5 (q/height))])
+          (cloud/cloud [(* 0.9 (q/width)) (* 0.7 (q/height))])
 
           ;; ui buttons
           (let [s 50]

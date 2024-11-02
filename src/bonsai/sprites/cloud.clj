@@ -6,14 +6,32 @@
 
 (defn draw-cloud
   [{[x y] :pos w :width h :height op :opacity}]
-  (q/fill (conj c/ceramic-white op))
   (q/no-stroke)
-  (q/ellipse x y w h))
+  (q/fill (conj c/ceramic-white op))
+  (q/begin-shape)
+  (q/arc x
+         y
+         (/ w 2)
+         h
+         q/PI
+         (* 2 q/PI))
+  (q/arc (+ x (* w 0.25))
+         y
+         (/ w 2)
+         (* h 1.5)
+         q/PI
+         (* 2 q/PI))
+  (q/end-shape :close))
 
 (defn update-cloud
   [c]
-  (let [speed (get c :speed 0.5)]
-    (update c :pos (fn [[x y]] [(- x speed) y]))))
+  (let [speed (get c :speed)
+        [x y] (get c :pos)
+        width (get c :width)]
+    (update c :pos (fn [[x y]]
+                     (if (<= x (- 0 width))
+                       [(q/width) y]
+                       [(- x speed) y])))))
 
 (defn cloud
   [pos]
