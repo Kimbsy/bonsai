@@ -137,7 +137,7 @@
     (unchanged? state branches) ["Factory default,"
                                  "Immutable and stoic."
                                  "Why change what's perfect?"]
-    (< (count branches) 4) (rand-nth sparse-haikus)
+    (< (count branches) 40) (rand-nth sparse-haikus)
     (< 130 (count branches)) (rand-nth busy-haikus)
     :else (rand-nth normal-haikus)))
 
