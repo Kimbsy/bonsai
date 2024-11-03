@@ -58,7 +58,7 @@
 (defn cycle-season-delay
   []
   (qpdelay/delay
-    60
+    80
     (fn [state]
       (-> state
           change-season
@@ -66,7 +66,7 @@
 
 (def sparse-haikus
   [["Sparse branches whisper,"
-    "Reaching through stillness, they speak—"
+    "Reaching through stillness, they speak"
     "A quiet strength breathes."]
    ["Few branches remain,"
     "Aged roots in a shallow bed,"
@@ -86,7 +86,7 @@
 
 (def busy-haikus
   [["Branches dance and weave,"
-    "Bursting with wild, leafy life—"
+    "Bursting with wild, leafy life"
     "A tangled story."]
    ["Branches twist and crowd,"
     "Lively whispers interlace,"
@@ -106,7 +106,7 @@
 
 (def normal-haikus
   [["Strong roots, branches wide,"
-    "Shade and rustling leaves at rest—"
+    "Shade and rustling leaves at rest"
     "Peaceful, steadfast tree."]
    ["Graceful branches sway,"
     "Leaves whisper in gentle winds,"
@@ -121,7 +121,7 @@
     "Dappled patterns dance below,"
     "A quiet embrace."]
    ["Seasons come and go,"
-    "Leaves bloom, fall, then bloom again—"
+    "Leaves bloom, fall, then bloom again"
     "The tree stands patient."]])
 
 (defn unchanged?
@@ -134,9 +134,9 @@
 (defn choose-poem
   [state branches]
   (cond
-    (unchanged? state branches) ["you should change something"
-                                 "it's not hard, it's kinda fun"
-                                 "come on, have a go."]
+    (unchanged? state branches) ["Factory default,"
+                                 "Immutable and stoic."
+                                 "Why change what's perfect?"]
     (< (count branches) 4) (rand-nth sparse-haikus)
     (< 130 (count branches)) (rand-nth busy-haikus)
     :else (rand-nth normal-haikus)))
@@ -169,7 +169,7 @@
                  :color c/dark-green))]))
             (qpdelay/add-delay
              (qpdelay/add-sprites-to-scene
-              60
+              80
               [(fade-in
                 (qpsprite/text-sprite
                  l2
@@ -177,17 +177,19 @@
                  :color c/dark-green))]))
             (qpdelay/add-delay
              (qpdelay/add-sprites-to-scene
-              90
+              130
               [(fade-in
                 (qpsprite/text-sprite
                  l3
                  [(/ (q/width) 2) (* (q/height) 0.24)]
                  :color c/dark-green))])))))))
 
+(declare init)
+
 (defn display-exit-icon-delay
   []
   (qpdelay/add-sprites-to-scene
-   100
+   130
    [(let [s 50]
       (assoc (qpsprite/image-sprite :finish
                                     [(- (q/width) s)
@@ -195,13 +197,14 @@
                                     s s
                                     "img/finish-icon.png")
              :click-fn (fn [state]
-                         ;; @TODO: reset scenes!!!!!
                          (q/no-stroke)
-                         (qpscene/transition
-                          state
-                          :menu
-                          :transition-length 60
-                          :transition-fn c/fade-to-white))))]))
+                         (-> state
+                             (assoc-in [:scenes :garden] (bonsai.scenes.garden/init))
+                             (assoc-in [:scenes :end] (init))
+                             (qpscene/transition
+                              :menu
+                              :transition-length 60
+                              :transition-fn c/fade-to-white)))))]))
 
 (defn handle-mouse-pressed
   [{:keys [current-scene] :as state} e]
